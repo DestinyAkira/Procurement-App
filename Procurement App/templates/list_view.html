@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="text-capitalize mb-0">{{ entity_type.replace('_', ' ') }}</h2>
+    <a href="{{ url_for('add_entity', entity_type=entity_type) }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Add New {{ entity_type.replace('_', ' ')[:-1] if entity_type != 'batches' else 'Batch' }}
+    </a>
+</div>
+
+<!-- Spreadsheet Bulk Import Bar -->
+{% if entity_type in ['requisitions', 'purchase_orders', 'invoices'] %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-body py-2">
+        <form action="{{ url_for('import_spreadsheet', entity_type=entity_type) }}" method="POST" enctype="multipart/form-data" class="row g-2 align-items-center">
+            <div class="col-auto fw-bold text-success"><i class="bi bi-file-earmark-excel"></i> Bulk Import Excel/CSV:</div>
+            <div class="col-md-6">
+                <input type="file" name="spreadsheet_file" class="form-control form-control-sm" accept=".xlsx, .xls, .csv" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-success btn-sm fw-bold">Upload & Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Search & Filter Bar -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="tableSearchInput" class="form-control" placeholder="Search by Document #, Vendor, Description, or Date...">
+                </div>
+            </div>
+            {% if entity_type != 'invoices' %}
+            <div class="col-md-4">
+                <select id="areaFilterSelect" class="form-select form-select-sm">
+                    <option value="">All Functional Areas</option>
+                    <option value="Custodial/Grounds">Custodial/Grounds</option>
+                    <option value="Stores">Stores</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Services- Electrical, Plumbing, Water">Services- Electrical, Plumbing, Water</option>
+                    <option value="Services- AC, Vehicles, Elevators">Services- AC, Vehicles, Elevators</option>
+                    <option value="Civil">Civil</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-md-end">
+                <button type="button" id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm w-100">Clear</button>
+            </div>
+            {% else %}
+            <div class="col-md-6 text-md-end">
+                <button type="button" id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm px-4">Clear Search</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Action Form -->
+<form method="POST" action="{{ url_for('bulk_action', entity_type=entity_type) }}" id="bulkForm">
+    <div id="bulkToolbar" class="card border-primary bg-primary bg-opacity-10 shadow-sm mb-3 d-none">
+        <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-bold text-primary me-2"><span id="selectedCount">0</span> selected:</span>
+
+            <select name="bulk_action" id="bulkActionSelect" class="form-select form-select-sm w-auto" required>
+                <option value="">-- Choose Bulk Action --</option>
+                {% if entity_type == 'invoices' %}
+                    <option value="assign_batch">Assign to Batch Summary</option>
+                    <option value="mark_bursary">Mark Submitted to Bursary</option>
+                    <option value="mark_ta">Mark Sent to TA</option>
+                    <option value="mark_om">Mark Sent to OM</option>
+                {% endif %}
+                <option value="delete">Delete Selected Records</option>
+            </select>
+
+            {% if entity_type == 'invoices' %}
+                <select name="bulk_batch_id" id="bulkBatchSelect" class="form-select form-select-sm w-auto d-none">
+                    <option value="">-- Select Batch --</option>
+                    {% for b in batches %}
+                        <option value="{{ b.id }}">{{ b.batch_number }} ({{ b.functional_area or 'General' }})</option>
+                    {% endfor %}
+                </select>
+
+                <input type="date" name="bulk_date" id="bulkDateInput" class="form-control form-control-sm w-auto d-none" value="{{ today_str }}">
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary btn-sm fw-bold" onclick="return confirmBulkSubmit();">
+                Apply Action
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle" id="entitiesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 36px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllCheckbox" title="Select All Visible">
+                            </th>
+                            {% if entity_type == 'requisitions' %}
+                                <th>Requisition Number</th><th>Transaction Date</th><th>Quotation Number</th><th>POID</th><th>Vendor Name</th><th>Description</th><th>Value</th><th>Functional Area</th><th>Remarks</th><th>Date Sent to Bursary</th><th>PDF</th>
+                            {% elif entity_type == 'purchase_orders' %}
+                                <th>POID</th><th>Requisition Number</th><th>Vendor Name</th><th>PO Amount</th><th>Date</th><th>Service</th><th>Functional Area</th><th>Remarks</th><th>PDF</th>
+                            {% elif entity_type == 'invoices' %}
+                                <th>Invoice Number</th><th>Invoice Date</th><th>Vendor Name</th><th>Invoice Amount</th><th>Date Received</th><th>Invoice Details</th><th>POID</th><th>Remarks</th><th>Batch ID (Lookup)</th><th>Date Sent to Nekeisha</th><th>Date Returned from Nekeisha</th><th>Date Sent to TA</th><th>Date Returned from TA</th><th>Date Sent to OM</th><th>Date Returned from OM</th><th>Date Submitted to Bursary</th><th>Bursary Date Batch</th><th>Payment Received</th><th>PDF</th>
+                            {% elif entity_type == 'batches' %}
+                                <th>Batch #</th><th>Functional Area</th><th>Period Collected</th><th>Reviewed Date</th><th>Submission Date</th><th>Remarks</th>
+                            {% elif entity_type == 'statements' %}
+                                <th>Statement #</th><th>Functional Area</th><th>Vendor</th><th>Period</th><th>Date Received</th><th>Balance/Amount</th><th>Linked Invoices</th><th>PDF</th>
+                            {% endif %}
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr data-area="{{ item.functional_area or '' }}">
+                            <td>
+                                <input type="checkbox" class="form-check-input row-checkbox" name="selected_ids" value="{{ item.id }}">
+                            </td>
+                            {% if entity_type == 'requisitions' %}
+                                <td class="fw-bold">{{ item.requisition_number }}</td>
+                                <td>{{ format_date_us(item.transaction_date) if item.transaction_date else '-' }}</td>
+                                <td>{{ item.quotation_number or '-' }}</td>
+                                <td>{{ item.poid or '-' }}</td>
+                                <td>{{ item.vendor_name or '-' }}</td>
+                                <td>{{ item.description or '-' }}</td>
+                                <td>${{ "%.2f"|format(item.value or 0) }}</td>
+                                <td><span class="badge bg-secondary">{{ item.functional_area or '-' }}</span></td>
+                                <td>{{ item.remarks or '-' }}</td>
+                                <td>{{ format_date_us(item.date_sent_to_bursary) if item.date_sent_to_bursary else 'Pending' }}</td>
+                                <td>
+                                    {% if item.pdf_filename %}
+                                        <a href="{{ url_for('uploaded_file', filename=item.pdf_filename) }}" target="_blank" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-pdf"></i> View</a>
+                                    {% else %}-{% endif %}
+                                </td>
+                            {% elif entity_type == 'purchase_orders' %}
+                                <td class="fw-bold">{{ item.poid }}</td>
+                                <td>{{ item.requisition.requisition_number if item.requisition else 'None' }}</td>
+                                <td>{{ item.vendor_name or '-' }}</td>
+                                <td>${{ "%.2f"|format(item.po_amount or 0) }}</td>
+                                <td>{{ format_date_us(item.date) if item.date else '-' }}</td>
+                                <td>{{ item.service or '-' }}</td>
+                                <td><span class="badge bg-secondary">{{ item.functional_area or '-' }}</span></td>
+                                <td>{{ item.remarks or '-' }}</td>
+                                <td>
+                                    {% if item.pdf_filename %}
+                                        <a href="{{ url_for('uploaded_file', filename=item.pdf_filename) }}" target="_blank" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-pdf"></i> View</a>
+                                    {% else %}-{% endif %}
+                                </td>
+                            {% elif entity_type == 'invoices' %}
+                                <td class="fw-bold">{{ item.invoice_number }}</td>
+                                <td>{{ format_date_us(item.invoice_date) if item.invoice_date else '-' }}</td>
+                                <td>{{ item.vendor_name or '-' }}</td>
+                                <td>${{ "%.2f"|format(item.invoice_amount or 0) }}</td>
+                                <td>{{ format_date_us(item.date_received) if item.date_received else '-' }}</td>
+                                <td>{{ item.invoice_details or '-' }}</td>
+                                <td>{{ item.purchase_order.poid if item.purchase_order else 'None' }}</td>
+                                <td>{{ item.remarks or '-' }}</td>
+                                <td>{{ item.batch.batch_number if item.batch else 'None' }}</td>
+                                <td>{{ format_date_us(item.date_sent_to_nekeisha) if item.date_sent_to_nekeisha else '-' }}</td>
+                                <td>{{ format_date_us(item.date_returned_from_nekeisha) if item.date_returned_from_nekeisha else '-' }}</td>
+                                <td>{{ format_date_us(item.date_sent_to_ta) if item.date_sent_to_ta else '-' }}</td>
+                                <td>{{ format_date_us(item.date_returned_from_ta) if item.date_returned_from_ta else '-' }}</td>
+                                <td>{{ format_date_us(item.date_sent_to_om) if item.date_sent_to_om else '-' }}</td>
+                                <td>{{ format_date_us(item.date_returned_from_om) if item.date_returned_from_om else '-' }}</td>
+                                <td>{{ format_date_us(item.date_submitted_to_bursary) if item.date_submitted_to_bursary else 'Pending' }}</td>
+                                <td>{{ item.bursary_date_batch or '-' }}</td>
+                                <td>{{ format_date_us(item.payment_received) if item.payment_received else '-' }}</td>
+                                <td>
+                                    {% if item.pdf_filename %}
+                                        <a href="{{ url_for('uploaded_file', filename=item.pdf_filename) }}" target="_blank" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-pdf"></i> View</a>
+                                    {% else %}-{% endif %}
+                                </td>
+                            {% elif entity_type == 'batches' %}
+                                <td class="fw-bold">{{ item.batch_number }}</td>
+                                <td><span class="badge bg-secondary">{{ item.functional_area or '-' }}</span></td>
+                                <td>{{ item.period_collected or '-' }}</td>
+                                <td>{{ format_date_us(item.date_reviewed) if item.date_reviewed else '-' }}</td>
+                                <td>{{ format_date_us(item.submission_date) if item.submission_date else 'Pending' }}</td>
+                                <td>{{ item.remarks or '-' }}</td>
+                            {% elif entity_type == 'statements' %}
+                                <td class="fw-bold">{{ item.statement_number }}</td>
+                                <td><span class="badge bg-secondary">{{ item.functional_area or '-' }}</span></td>
+                                <td>{{ item.vendor or '-' }}</td>
+                                <td>{{ item.statement_period or '-' }}</td>
+                                <td>{{ format_date_us(item.date_received) if item.date_received else '-' }}</td>
+                                <td>${{ "%.2f"|format(item.amount or 0) }}</td>
+                                <td><span class="badge bg-info text-dark">{{ item.invoices|length }} invoice(s)</span></td>
+                                <td>
+                                    {% if item.pdf_filename %}
+                                        <a href="{{ url_for('uploaded_file', filename=item.pdf_filename) }}" target="_blank" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-pdf"></i> View</a>
+                                    {% else %}-{% endif %}
+                                </td>
+                            {% endif %}
+                            <td class="text-nowrap">
+                                <a href="{{ url_for('edit_entity', entity_type=entity_type, id=item.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <button type="submit"
+                                        formaction="{{ url_for('delete_entity', entity_type=entity_type, id=item.id) }}"
+                                        formmethod="POST"
+                                        class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Are you sure you want to delete this record?');">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="20" class="text-center text-muted py-4">No records found. Click "Add New" to create one.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    function confirmBulkSubmit() {
+        const action = document.getElementById('bulkActionSelect').value;
+        if (!action) {
+            alert('Please choose a bulk action first.');
+            return false;
+        }
+        if (action === 'delete') {
+            return confirm('Are you sure you want to permanently delete all selected records?');
+        }
+        return true;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('tableSearchInput');
+        const areaSelect = document.getElementById('areaFilterSelect');
+        const clearBtn = document.getElementById('clearFiltersBtn');
+        const rows = document.querySelectorAll('#entitiesTable tbody tr');
+
+        const selectAllCb = document.getElementById('selectAllCheckbox');
+        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+        const bulkToolbar = document.getElementById('bulkToolbar');
+        const selectedCountSpan = document.getElementById('selectedCount');
+        const bulkActionSelect = document.getElementById('bulkActionSelect');
+        const bulkBatchSelect = document.getElementById('bulkBatchSelect');
+        const bulkDateInput = document.getElementById('bulkDateInput');
+
+        function updateBulkToolbar() {
+            const checkedCount = Array.from(rowCheckboxes).filter(cb => cb.checked).length;
+            if (selectedCountSpan) selectedCountSpan.textContent = checkedCount;
+            if (bulkToolbar) {
+                if (checkedCount > 0) {
+                    bulkToolbar.classList.remove('d-none');
+                } else {
+                    bulkToolbar.classList.add('d-none');
+                }
+            }
+        }
+
+        if (selectAllCb) {
+            selectAllCb.addEventListener('change', function() {
+                rows.forEach(row => {
+                    if (row.style.display !== 'none') {
+                        const cb = row.querySelector('.row-checkbox');
+                        if (cb) cb.checked = selectAllCb.checked;
+                    }
+                });
+                updateBulkToolbar();
+            });
+        }
+
+        rowCheckboxes.forEach(cb => {
+            cb.addEventListener('change', updateBulkToolbar);
+        });
+
+        if (bulkActionSelect) {
+            bulkActionSelect.addEventListener('change', function() {
+                const val = bulkActionSelect.value;
+                if (bulkBatchSelect) {
+                    bulkBatchSelect.classList.toggle('d-none', val !== 'assign_batch');
+                }
+                if (bulkDateInput) {
+                    const needsDate = ['mark_bursary', 'mark_ta', 'mark_om'].includes(val);
+                    bulkDateInput.classList.toggle('d-none', !needsDate);
+                }
+            });
+        }
+
+        function filterTable() {
+            const term = searchInput.value.toLowerCase().trim();
+            const area = areaSelect ? areaSelect.value : '';
+
+            rows.forEach(row => {
+                const textMatch = row.textContent.toLowerCase().includes(term);
+                const areaMatch = !area || row.getAttribute('data-area') === area;
+                row.style.display = (textMatch && areaMatch) ? '' : 'none';
+            });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', filterTable);
+        }
+        if (areaSelect) {
+            areaSelect.addEventListener('change', filterTable);
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                if (searchInput) searchInput.value = '';
+                if (areaSelect) areaSelect.value = '';
+                filterTable();
+            });
+        }
+    });
+</script>
+{% endblock %}

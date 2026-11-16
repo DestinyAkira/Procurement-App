@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2><i class="bi bi-graph-up text-warning"></i> Bursary Compliance Reports & Analytics</h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('export_excel_report', target_month=selected_month) }}" class="btn btn-success btn-sm fw-bold">
+            <i class="bi bi-file-earmark-excel"></i> Export All Sheets (.xlsx)
+        </a>
+        <a href="{{ url_for('reports_hub') }}" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
+    </div>
+</div>
+
+<!-- Report 1: Outstanding Requisitions -->
+<div class="card shadow-sm mb-5">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Outstanding Requisitions (Pending Purchase Order)</h5>
+        <a href="{{ url_for('export_report', report_type='requisitions') }}" class="btn btn-light btn-sm fw-bold"><i class="bi bi-download"></i> Export CSV</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr><th>Req #</th><th>Functional Area</th><th>Quote #</th><th>Date</th><th>Vendor</th><th>Job</th><th>Amount</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in outstanding_reqs %}
+                    <tr>
+                        <td class="fw-bold">{{ r.requisition_number }}</td>
+                        <td><span class="badge bg-secondary">{{ r.functional_area or '-' }}</span></td>
+                        <td>{{ r.quote_number or '-' }}</td>
+                        <td>{{ r.date or '-' }}</td>
+                        <td>{{ r.vendor or '-' }}</td>
+                        <td>{{ r.job or '-' }}</td>
+                        <td>${{ "%.2f"|format(r.amount or 0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted py-3">All requisitions have been linked to Purchase Orders!</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if outstanding_reqs %}
+                <tfoot>
+                    <tr class="fw-bold table-light">
+                        <td colspan="6" class="text-end">Total Outstanding Amount:</td>
+                        <td>${{ "%.2f"|format(outstanding_reqs_total) }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Report 2: Purchase Order vs Invoices Balance Check -->
+<div class="card shadow-sm mb-5">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-cart-check"></i> Purchase Order vs Invoiced Amounts</h5>
+        <a href="{{ url_for('export_report', report_type='purchase_orders') }}" class="btn btn-light btn-sm fw-bold"><i class="bi bi-download"></i> Export CSV</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr><th>PO #</th><th>Functional Area</th><th>Vendor</th><th>PO Amount</th><th>Invoiced Total</th><th>Remaining Balance</th><th>Linked Invoices</th></tr>
+                </thead>
+                <tbody>
+                    {% for entry in po_report_data %}
+                    <tr>
+                        <td class="fw-bold">{{ entry.po.po_number }}</td>
+                        <td><span class="badge bg-secondary">{{ entry.po.functional_area or '-' }}</span></td>
+                        <td>{{ entry.po.vendor or '-' }}</td>
+                        <td>${{ "%.2f"|format(entry.po_total) }}</td>
+                        <td>${{ "%.2f"|format(entry.invoices_total) }}</td>
+                        <td class="fw-bold {{ 'text-danger' if entry.balance < 0 else 'text-success' }}">${{ "%.2f"|format(entry.balance) }}</td>
+                        <td>
+                            {% for inv in entry.invoices %}
+                                <span class="badge bg-info text-dark">{{ inv.invoice_number }} (${{ "%.2f"|format(inv.amount or 0) }})</span>
+                            {% else %}
+                                <span class="text-muted small">None</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="fw-bold table-light">
+                        <td colspan="3" class="text-end">Grand Totals:</td>
+                        <td>${{ "%.2f"|format(grand_po_total) }}</td>
+                        <td>${{ "%.2f"|format(grand_inv_total) }}</td>
+                        <td colspan="2">${{ "%.2f"|format(grand_po_total - grand_inv_total) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Report 3: Overdue Invoices / Bursary Submission Audit -->
+<div class="card shadow-sm mb-5">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0"><i class="bi bi-receipt"></i> Overdue Invoices Audit (Target 15th: {{ target_15th }})</h5>
+        <form method="GET" action="{{ url_for('reports_hub') }}" class="d-flex align-items-center gap-2">
+            <input type="month" name="target_month" class="form-control form-control-sm" value="{{ selected_month }}">
+            <button type="submit" class="btn btn-dark btn-sm">Filter</button>
+            <a href="{{ url_for('export_report', report_type='invoices', target_month=selected_month) }}" class="btn btn-dark btn-sm"><i class="bi bi-download"></i> Export CSV</a>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr><th>Invoice #</th><th>Functional Area</th><th>PO #</th><th>Invoice Date</th><th>Submission Date</th><th>Days Prior</th><th>Amount</th><th>Statement # & Details</th></tr>
+                </thead>
+                <tbody>
+                    {% for entry in overdue_invoices %}
+                    {% set inv = entry.invoice %}
+                    {% set stmt = inv.statement %}
+                    <tr>
+                        <td class="fw-bold">{{ inv.invoice_number }}</td>
+                        <td><span class="badge bg-secondary">{{ inv.functional_area or '-' }}</span></td>
+                        <td>{{ inv.purchase_order.po_number if inv.purchase_order else '-' }}</td>
+                        <td>{{ inv.date or '-' }}</td>
+                        <td>{{ inv.date_sent_to_bursary or 'Not Sent' }}</td>
+                        <td><span class="badge bg-danger">{{ entry.days_before_15th }} days</span></td>
+                        <td>${{ "%.2f"|format(inv.amount or 0) }}</td>
+                        <td>
+                            {% if stmt %}
+                                <strong class="text-primary">{{ stmt.statement_number }}</strong> ({{ stmt.vendor }})<br>
+                                <small class="text-muted">Period: {{ stmt.statement_period or '-' }} | Recv: {{ stmt.date_received or '-' }} | Bal: ${{ "%.2f"|format(stmt.amount or 0) }}</small>
+                            {% else %}
+                                <span class="text-muted fst-italic">Unlinked to statement</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" class="text-center text-muted py-3">No overdue invoices found for this period.</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if overdue_invoices %}
+                <tfoot>
+                    <tr class="fw-bold table-light">
+                        <td colspan="6" class="text-end">Total Overdue Amount:</td>
+                        <td colspan="2">${{ "%.2f"|format(overdue_invoices_total) }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

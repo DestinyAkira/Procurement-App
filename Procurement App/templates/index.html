@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block content %}
+{% set cd = chart_data | default({}) %}
+{% set labels = cd.get('labels', []) %}
+{% set po_totals = cd.get('po_totals', []) %}
+{% set inv_totals = cd.get('inv_totals', []) %}
+{% set total_committed = cd.get('total_committed', 0) or 0 %}
+{% set total_invoiced = cd.get('total_invoiced', 0) or 0 %}
+{% set avg_turnaround = cd.get('avg_turnaround', 0) or 0 %}
+
+<div class="p-4 mb-4 bg-white rounded-3 shadow-sm border">
+    <div class="container-fluid py-2 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1 class="h2 fw-bold text-primary mb-1">Procurement & Inventory Management System</h1>
+            <p class="text-muted mb-0">Track Requisitions, Purchase Orders, Invoices, Batch Summaries, Vendor Statements, and Bursary compliance.</p>
+        </div>
+        <a href="{{ url_for('export_excel_report') }}" class="btn btn-success fw-bold shadow-sm">
+            <i class="bi bi-file-earmark-excel"></i> Download Complete Excel Report (.xlsx)
+        </a>
+    </div>
+</div>
+
+<!-- Top Entity Cards -->
+<div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+    <div class="col">
+        <div class="card h-100 shadow-sm border-primary border-top border-4">
+            <div class="card-body">
+                <h5 class="card-title text-muted"><i class="bi bi-file-earmark-text text-primary"></i> Requisitions</h5>
+                <h2 class="display-6 fw-bold">{{ stats.requisitions | default(0) }}</h2>
+                <p class="text-danger small fw-bold mb-3">{{ stats.reqs_without_po | default(0) }} unlinked to a Purchase Order</p>
+                <a href="{{ url_for('list_entities', entity_type='requisitions') }}" class="btn btn-outline-primary btn-sm">Manage Requisitions</a>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100 shadow-sm border-success border-top border-4">
+            <div class="card-body">
+                <h5 class="card-title text-muted"><i class="bi bi-cart-check text-success"></i> Purchase Orders</h5>
+                <h2 class="display-6 fw-bold">{{ stats.pos | default(0) }}</h2>
+                <p class="text-muted small mb-3">Committed: <strong>${{ "%.2f"|format(total_committed) }}</strong></p>
+                <a href="{{ url_for('list_entities', entity_type='purchase_orders') }}" class="btn btn-outline-success btn-sm">Manage Purchase Orders</a>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100 shadow-sm border-warning border-top border-4">
+            <div class="card-body">
+                <h5 class="card-title text-muted"><i class="bi bi-receipt text-warning"></i> Invoices</h5>
+                <h2 class="display-6 fw-bold">{{ stats.invoices | default(0) }}</h2>
+                <p class="text-danger small fw-bold mb-3">{{ stats.unsubmitted_invoices | default(0) }} pending Bursary | {{ stats.overdue_invoices | default(0) }} overdue</p>
+                <a href="{{ url_for('list_entities', entity_type='invoices') }}" class="btn btn-outline-warning btn-sm">Manage Invoices</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Spend Visualization & Turnaround Metrics -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white fw-bold">
+                <i class="bi bi-bar-chart-fill text-primary"></i> Spend by Functional Area (PO Committed vs. Invoiced)
+            </div>
+            <div class="card-body">
+                <canvas id="functionalAreaChart" height="120"></canvas>
+                <div id="chartFallbackMsg" class="text-muted text-center py-4 d-none">
+                    Chart visualization unavailable offline. View detailed breakdown in Compliance Reports.
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white fw-bold">
+                <i class="bi bi-clock-history text-info"></i> Financial & Turnaround Summary
+            </div>
+            <div class="card-body d-flex flex-column justify-content-between">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-muted">Total PO Committed</span>
+                        <span class="fw-bold text-success">${{ "%.2f"|format(total_committed) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-muted">Total Invoiced</span>
+                        <span class="fw-bold text-primary">${{ "%.2f"|format(total_invoiced) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-muted">Unbilled PO Balance</span>
+                        <span class="fw-bold">${{ "%.2f"|format(total_committed - total_invoiced) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-muted">Avg. Bursary Turnaround</span>
+                        <span class="badge bg-info text-dark fs-6">{{ avg_turnaround }} days</span>
+                    </li>
+                </ul>
+                <div class="mt-3 d-grid gap-2">
+                    <a href="{{ url_for('reports_hub') }}" class="btn btn-warning fw-bold btn-sm">Open Detailed Compliance Reports &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Entity Cards -->
+<div class="row row-cols-1 row-cols-md-2 g-4 mb-5">
+    <div class="col">
+        <div class="card h-100 shadow-sm border-info border-top border-4">
+            <div class="card-body">
+                <h5 class="card-title text-muted"><i class="bi bi-collection text-info"></i> Batch Summaries</h5>
+                <h2 class="display-6 fw-bold">{{ stats.batches | default(0) }}</h2>
+                <p class="text-muted small mb-3">Grouped batches for Bursary review</p>
+                <a href="{{ url_for('list_entities', entity_type='batches') }}" class="btn btn-outline-info btn-sm">Manage Batches</a>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100 shadow-sm border-secondary border-top border-4">
+            <div class="card-body">
+                <h5 class="card-title text-muted"><i class="bi bi-file-earmark-spreadsheet text-secondary"></i> Vendor Statements</h5>
+                <h2 class="display-6 fw-bold">{{ stats.statements | default(0) }}</h2>
+                <p class="text-muted small mb-3">Reconcile statements against invoices</p>
+                <a href="{{ url_for('list_entities', entity_type='statements') }}" class="btn btn-outline-secondary btn-sm">Manage Statements</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const canvas = document.getElementById('functionalAreaChart');
+        const fallback = document.getElementById('chartFallbackMsg');
+
+        if (typeof Chart === 'undefined' || !canvas) {
+            if (canvas) canvas.classList.add('d-none');
+            if (fallback) fallback.classList.remove('d-none');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        const rawLabels = JSON.parse('{{ labels | tojson | safe }}');
+        const shortLabels = rawLabels.map(l => String(l).replace('Services- ', ''));
+        const poTotals = JSON.parse('{{ po_totals | tojson | safe }}');
+        const invTotals = JSON.parse('{{ inv_totals | tojson | safe }}');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: shortLabels,
+                datasets: [
+                    {
+                        label: 'PO Committed ($)',
+                        data: poTotals,
+                        backgroundColor: 'rgba(25, 135, 84, 0.75)',
+                        borderColor: 'rgba(25, 135, 84, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Invoiced ($)',
+                        data: invTotals,
+                        backgroundColor: 'rgba(13, 110, 253, 0.75)',
+                        borderColor: 'rgba(13, 110, 253, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + Number(value).toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

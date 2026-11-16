@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <a href="{{ url_for('list_entities', entity_type='statements') }}" class="btn btn-outline-secondary btn-sm mb-2">&larr; Back to Statements</a>
+        <h2 class="mb-0"><i class="bi bi-check2-square text-primary"></i> Reconcile Statement: {{ statement.statement_number }}</h2>
+    </div>
+    {% if statement.pdf_filename %}
+        <a href="{{ url_for('uploaded_file', filename=statement.pdf_filename) }}" target="_blank" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-file-pdf"></i> View Statement PDF
+        </a>
+    {% endif %}
+</div>
+
+<!-- Reconciliation Summary Cards -->
+<div class="row row-cols-1 row-cols-md-4 g-3 mb-4">
+    <div class="col">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Vendor & Period</div>
+                <div class="fw-bold fs-6">{{ statement.vendor or '-' }}</div>
+                <div class="small text-secondary">{{ statement.statement_period or 'No period' }} ({{ statement.date_received or 'No date' }})</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100 shadow-sm border-primary">
+            <div class="card-body">
+                <div class="text-muted small">Statement Balance</div>
+                <div class="fw-bold fs-4 text-primary">${{ "%.2f"|format(statement.amount or 0) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100 shadow-sm border-success">
+            <div class="card-body">
+                <div class="text-muted small">Linked Invoices Total ({{ linked_invoices|length }})</div>
+                <div class="fw-bold fs-4 text-success">${{ "%.2f"|format(linked_total) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100 shadow-sm {{ 'border-success bg-success bg-opacity-10' if variance == 0 else 'border-danger bg-danger bg-opacity-10' }}">
+            <div class="card-body">
+                <div class="text-muted small">Unreconciled Variance</div>
+                <div class="fw-bold fs-4 {{ 'text-success' if variance == 0 else 'text-danger' }}">
+                    ${{ "%.2f"|format(variance) }}
+                </div>
+                <div class="small fw-bold {{ 'text-success' if variance == 0 else 'text-danger' }}">
+                    {{ 'Balanced' if variance == 0 else ('Under-matched invoices' if variance > 0 else 'Invoices exceed statement') }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Link Additional Unassigned Invoice -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light fw-bold">Link an Unassigned Invoice to This Statement</div>
+    <div class="card-body">
+        <form method="POST" class="row g-2 align-items-center">
+            <input type="hidden" name="action" value="link">
+            <div class="col-md-9">
+                <select name="invoice_id" class="form-select" required>
+                    <option value="">-- Select an Unlinked Invoice --</option>
+                    {% for inv in unlinked_invoices %}
+                        <option value="{{ inv.id }}">
+                            {{ inv.invoice_number }} | Date: {{ inv.date or 'N/A' }} | PO: {{ inv.purchase_order.po_number if inv.purchase_order else 'None' }} | Amount: ${{ "%.2f"|format(inv.amount or 0) }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-link-45deg"></i> Attach Invoice</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Linked Invoices Table -->
+<div class="card shadow-sm">
+    <div class="card-header bg-dark text-white fw-bold">Invoices Included on This Statement</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>PO #</th>
+                        <th>Invoice Date</th>
+                        <th>Job / Description</th>
+                        <th>Bursary Sent</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in linked_invoices %}
+                    <tr>
+                        <td class="fw-bold">{{ inv.invoice_number }}</td>
+                        <td>{{ inv.purchase_order.po_number if inv.purchase_order else '-' }}</td>
+                        <td>{{ inv.date or '-' }}</td>
+                        <td>{{ inv.job or '-' }}</td>
+                        <td>{{ inv.date_sent_to_bursary or 'Not Sent' }}</td>
+                        <td class="fw-bold">${{ "%.2f"|format(inv.amount or 0) }}</td>
+                        <td>
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="action" value="unlink">
+                                <input type="hidden" name="invoice_id" value="{{ inv.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Unlink</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No invoices linked to this statement yet. Use the selector above to attach invoices.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
