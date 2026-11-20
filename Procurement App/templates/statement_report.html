@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-primary mb-1"><i class="bi bi-file-earmark-bar-graph"></i> Vendor Statement Report &amp; PDF Reconciliation</h2>
+        <p class="text-muted mb-0">
+            Statement: <strong>{{ statement.statement_number }}</strong> | Vendor: <strong>{{ statement.vendor or 'N/A' }}</strong> | Period: <strong>{{ statement.statement_period or 'N/A' }}</strong>
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if statement.pdf_filename %}
+        <a href="{{ url_for('uploaded_file', filename=statement.pdf_filename) }}" target="_blank" class="btn btn-outline-secondary fw-bold">
+            <i class="bi bi-file-earmark-pdf"></i> View Statement PDF
+        </a>
+        <a href="{{ url_for('statement_raw_text', statement_id=statement.id) }}" class="btn btn-outline-info fw-bold text-dark">
+            <i class="bi bi-file-text"></i> Raw PDF Text
+        </a>
+        {% endif %}
+        <a href="{{ url_for('export_statement_csv', statement_id=statement.id, target_month=selected_month) }}" class="btn btn-success fw-bold">
+            <i class="bi bi-filetype-csv"></i> Export CSV
+        </a>
+        <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+            <i class="bi bi-printer"></i> Print
+        </button>
+        <a href="{{ url_for('reports_hub', target_month=selected_month) }}" class="btn btn-outline-secondary fw-bold">Back to Reports</a>
+    </div>
+</div>
+
+<!-- Cutoff Month Selector -->
+<div class="card shadow-sm mb-4 border-info">
+    <div class="card-body py-3">
+        <form method="GET" action="{{ url_for('statement_report', statement_id=statement.id) }}" class="row g-3 align-items-center">
+            <div class="col-auto fw-bold text-secondary">Target Cutoff Month (15th):</div>
+            <div class="col-auto">
+                <input type="month" name="target_month" value="{{ selected_month }}" class="form-control form-control-sm" onchange="this.form.submit()">
+            </div>
+            <div class="col-auto text-muted small">
+                Cutoff Date: <strong>{{ target_15th }}</strong> &mdash; Invoices submitted <strong>&ge; 28 days</strong> prior are listed below.
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Qualifying Invoices Table -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-check-circle"></i> Qualifying Invoices (Submitted &ge; 28 Days Before {{ target_15th }})</span>
+        <span>{{ eligible_entries|length }} Qualifying Invoice(s)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Invoice Date</th>
+                    <th>POID</th>
+                    <th>Submitted to Bursary</th>
+                    <th class="text-center">Days Before 15th</th>
+                    <th>Remarks</th>
+                    <th class="text-end">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in eligible_entries %}
+                <tr>
+                    <td class="fw-bold">{{ entry.invoice.invoice_number }}</td>
+                    <td>{{ format_date_us(entry.invoice.invoice_date) }}</td>
+                    <td><span class="badge bg-secondary">{{ entry.invoice.purchase_order.poid if entry.invoice.purchase_order else 'None' }}</span></td>
+                    <td>{{ format_date_us(entry.submission_date) }}</td>
+                    <td class="text-center"><span class="badge bg-success">{{ entry.days_before_15th }} days</span></td>
+                    <td>{{ entry.invoice.remarks or '' }}</td>
+                    <td class="text-end fw-bold">${{ "{:,.2f}".format(entry.invoice.invoice_amount or 0) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">No linked invoices met the 28-day requirement for {{ target_15th }}.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="table-secondary fw-bold">
+                    <td colspan="6" class="text-end">TOTAL QUALIFYING PAYABLE:</td>
+                    <td class="text-end text-success">${{ "{:,.2f}".format(total_amount) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- All Other Linked Invoices on Statement -->
+{% if ineligible_invoices %}
+<div class="card shadow-sm mb-4 border-warning">
+    <div class="card-header bg-warning text-dark fw-bold">
+        <i class="bi bi-clock-history"></i> Other Matched Statement Invoices (&lt; 28 Days or Pending Bursary Submission)
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Invoice Date</th>
+                    <th>Submitted to Bursary</th>
+                    <th class="text-end">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in ineligible_invoices %}
+                <tr>
+                    <td class="fw-bold">{{ inv.invoice_number }}</td>
+                    <td>{{ format_date_us(inv.invoice_date) }}</td>
+                    <td>{{ format_date_us(inv.date_submitted_to_bursary) or 'Not Submitted' }}</td>
+                    <td class="text-end">${{ "{:,.2f}".format(inv.invoice_amount or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Invoices Found Only in Statement PDF -->
+{% if pdf_only_invoices %}
+<div class="card shadow-sm mb-4 border-info">
+    <div class="card-header bg-info text-dark fw-bold">
+        <i class="bi bi-file-earmark-pdf"></i> Invoices Extracted from Statement PDF (Not Yet Linked in Invoices Section)
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Invoice Date</th>
+                    <th class="text-end">Extracted Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pdf_inv in pdf_only_invoices %}
+                <tr>
+                    <td class="fw-bold">{{ pdf_inv.invoice_number }}</td>
+                    <td>{{ format_date_us(pdf_inv.invoice_date) }}</td>
+                    <td class="text-end">${{ "{:,.2f}".format(pdf_inv.invoice_amount or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

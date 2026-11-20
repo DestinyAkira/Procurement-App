@@ -3,45 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Procurement & Inventory Tracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <title>{{ app_name or 'AkiraZ Procurement System' }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --akira-pink: #ff4fa3;
+            --akira-pink-soft: #ffe6f2;
+            --akira-blue: #3b82f6;
+            --akira-blue-soft: #e0f2fe;
+            --akira-purple: #8b5cf6;
+            --akira-purple-soft: #f3e8ff;
+            --akira-ink: #2d1b4e;
+        }
+
+        body {
+            min-height: 100vh;
+            color: var(--akira-ink);
+            background:
+                radial-gradient(circle at 8% 12%, rgba(255, 79, 163, 0.16), transparent 34%),
+                radial-gradient(circle at 90% 18%, rgba(59, 130, 246, 0.18), transparent 36%),
+                radial-gradient(circle at 52% 88%, rgba(139, 92, 246, 0.18), transparent 40%),
+                linear-gradient(135deg, #fff5fa 0%, #f3f0ff 50%, #eef7ff 100%);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .akira-navbar {
+            background: linear-gradient(90deg, #ff4fa3 0%, #8b5cf6 52%, #3b82f6 100%);
+            border-radius: 0 0 28px 28px;
+            box-shadow: 0 10px 28px rgba(139, 92, 246, 0.25);
+            padding: 0.85rem 1.25rem;
+        }
+
+        .akira-navbar .navbar-brand {
+            color: #ffffff !important;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            background: rgba(255, 255, 255, 0.18);
+            padding: 0.45rem 1rem;
+            border-radius: 999px;
+            backdrop-filter: blur(6px);
+        }
+
+        .akira-navbar .nav-link {
+            color: rgba(255, 255, 255, 0.95) !important;
+            font-weight: 600;
+            border-radius: 999px;
+            padding: 0.45rem 0.9rem !important;
+            margin: 0 0.15rem;
+            transition: transform 0.18s ease, background-color 0.18s ease;
+        }
+
+        .akira-navbar .nav-link:hover,
+        .akira-navbar .nav-link.active {
+            background: rgba(255, 255, 255, 0.26);
+            transform: translateY(-2px);
+        }
+
+        .card {
+            border: 2px solid rgba(139, 92, 246, 0.14);
+            border-radius: 24px !important;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 24px rgba(139, 92, 246, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 28px rgba(255, 79, 163, 0.15) !important;
+        }
+
+        .card-header {
+            border-radius: 22px 22px 0 0 !important;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+        }
+
+        .card-header.bg-primary {
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%) !important;
+        }
+
+        .card-header.bg-info {
+            background: linear-gradient(90deg, #60a5fa 0%, #ff7ac6 100%) !important;
+            color: #ffffff !important;
+        }
+
+        .card-header.bg-warning {
+            background: linear-gradient(90deg, #ff7ac6 0%, #a78bfa 100%) !important;
+            color: #ffffff !important;
+        }
+
+        .card-header.bg-danger {
+            background: linear-gradient(90deg, #ec4899 0%, #7c3aed 100%) !important;
+        }
+
+        .card-header.bg-dark {
+            background: linear-gradient(90deg, #4c1d95 0%, #2563eb 100%) !important;
+        }
+
+        .btn {
+            border-radius: 999px !important;
+            padding-left: 1.05rem;
+            padding-right: 1.05rem;
+            font-weight: 700;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(139, 92, 246, 0.22);
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+            border: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(90deg, #ff4fa3 0%, #8b5cf6 100%);
+            border: none;
+        }
+
+        .btn-info {
+            background: linear-gradient(90deg, #38bdf8 0%, #c084fc 100%);
+            border: none;
+            color: #ffffff !important;
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: 16px !important;
+            border: 2px solid #e9d5ff;
+            background-color: #ffffff;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--akira-pink);
+            box-shadow: 0 0 0 0.22rem rgba(255, 79, 163, 0.2);
+        }
+
+        .table-responsive {
+            border-radius: 0 0 22px 22px;
+        }
+
+        .table-success {
+            --bs-table-bg: #fce7f3;
+            --bs-table-striped-bg: #fbcfe8;
+            --bs-table-hover-bg: #f9a8d4;
+            color: #500724;
+        }
+
+        .badge {
+            border-radius: 999px;
+            padding: 0.4em 0.75em;
+            font-weight: 700;
+        }
+
+        .badge.bg-success {
+            background: linear-gradient(90deg, #ec4899 0%, #8b5cf6 100%) !important;
+        }
+
+        .badge.bg-secondary {
+            background: linear-gradient(90deg, #60a5fa 0%, #8b5cf6 100%) !important;
+        }
+    </style>
 </head>
-<body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
-                <i class="bi bi-box-seam"></i> Procurement System
+<body>
+    <nav class="navbar navbar-expand-lg akira-navbar mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-stars"></i> {{ app_name or 'AkiraZ Procurement System' }}
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler bg-light rounded-pill" type="button" data-bs-toggle="collapse" data-bs-target="#akiraNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-lg-center">
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Dashboard</a></li>
+            <div class="collapse navbar-collapse" id="akiraNav">
+                <ul class="navbar-nav ms-auto gap-1">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}"><i class="bi bi-house-heart"></i> Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='requisitions') }}">Requisitions</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='purchase_orders') }}">Purchase Orders</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='invoices') }}">Invoices</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='batches') }}">Batch Summaries</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='statements') }}">Vendor Statements</a></li>
-                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="{{ url_for('reports_hub') }}"><i class="bi bi-graph-up"></i> Reports</a></li>
-                    <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
-                        <a class="btn btn-outline-info btn-sm" href="{{ url_for('backup_db') }}" title="Download SQLite Database Backup">
-                            <i class="bi bi-database-down"></i> Backup DB
-                        </a>
-                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='batches') }}">Batches</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('list_entities', entity_type='statements') }}">Statements</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('reports_hub') }}"><i class="bi bi-graph-up"></i> Reports &amp; Audit</a></li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container">
+    <div class="container-fluid px-4 pb-5">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    <div class="alert alert-{{ category }} alert-dismissible fade show rounded-4 shadow-sm" role="alert">
+                        {{ message|safe }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 {% endfor %}
             {% endif %}
@@ -50,6 +207,6 @@
         {% block content %}{% endblock %}
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

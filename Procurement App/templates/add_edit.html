@@ -2,248 +2,303 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <div class="mb-3">
-            <a href="{{ url_for('list_entities', entity_type=entity_type) }}" class="btn btn-outline-secondary btn-sm">&larr; Back to List</a>
-        </div>
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="bi bi-pencil-square"></i> 
+                    {% if item and item.id %}Edit{% else %}Add New{% endif %} 
+                    {{ entity_type[:-1].replace('_', ' ').capitalize() if entity_type.endswith('s') else entity_type.replace('_', ' ').capitalize() }}
+                </span>
+                <a href="{{ url_for('list_entities', entity_type=entity_type) }}" class="btn btn-sm btn-light fw-bold">Back to List</a>
+            </div>
             <div class="card-body">
-                <h3 class="mb-4">{{ "Edit" if item and item.id else "Add New" }} {{ entity_type.replace('_', ' ').title() }}</h3>
-                <form method="POST" enctype="multipart/form-data">
-                    
-                    {% if entity_type != 'batches' %}
-                    <div class="card bg-light border-primary mb-4">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label fw-bold text-primary mb-0">
-                                    📑 {{ "Replace / View PDF Document" if item and item.id else "Upload PDF Document (Auto-Fill Available)" }}
-                                </label>
-                                {% if item and item.extraction_method %}
-                                    <span class="badge bg-info text-dark">Mode: {{ item.extraction_method }}</span>
-                                {% endif %}
-                            </div>
-
-                            {% if item and item.pdf_filename %}
-                                <div class="mb-2 small">
-                                    Attached File: <a href="{{ url_for('uploaded_file', filename=item.pdf_filename) }}" target="_blank" class="fw-bold">{{ item.pdf_filename }}</a>
-                                </div>
-                                <input type="hidden" name="existing_pdf_filename" value="{{ item.pdf_filename }}">
-                            {% endif %}
-
-                            <div class="input-group">
-                                <input type="file" class="form-control" name="pdf_file" accept=".pdf">
-                                {% if not item or not item.id %}
-                                    <button type="submit" name="action" value="autofill" formnovalidate class="btn btn-primary">
-                                        ✨ Auto-Fill Form from PDF
-                                    </button>
-                                {% endif %}
-                            </div>
-
-                            {% if not item or not item.id %}
-                                <div class="form-text">Select a PDF and click <strong>Auto-Fill Form from PDF</strong> to extract numbers, dates, vendor, and totals automatically.</div>
-                            {% endif %}
+                <!-- PDF Auto-fill Upload Bar -->
+                <form action="{{ url_for('add_entity', entity_type=entity_type) }}" method="POST" enctype="multipart/form-data" class="mb-4 p-3 bg-light border rounded">
+                    <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-magic"></i> Auto-fill from PDF Document</h6>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-8">
+                            <input type="file" name="pdf_file" class="form-control form-control-sm" accept=".pdf" required>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="hidden" name="action" value="autofill">
+                            <button type="submit" class="btn btn-sm btn-dark w-100 fw-bold">Extract PDF Data</button>
                         </div>
                     </div>
+                    <div class="form-text mt-1">Upload a PDF statement or invoice to automatically extract and populate fields below.</div>
+                </form>
+
+                <hr class="mb-4">
+
+                <!-- Main Add / Edit Form -->
+                <form action="" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="save">
+                    {% if item and item.pdf_filename %}
+                    <input type="hidden" name="existing_pdf_filename" value="{{ item.pdf_filename }}">
                     {% endif %}
 
-                    {% if entity_type != 'invoices' %}
+                    {% if entity_type == 'statements' %}
+                    <!-- VENDOR STATEMENT FORM FIELDS -->
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Functional Area</label>
-                        <select class="form-select" name="functional_area" id="functionalAreaSelect" required>
-                            <option value="">-- Select Functional Area --</option>
-                            <option value="Custodial/Grounds" {% if item and item.functional_area == 'Custodial/Grounds' %}selected{% endif %}>Custodial/Grounds</option>
-                            <option value="Stores" {% if item and item.functional_area == 'Stores' %}selected{% endif %}>Stores</option>
-                            <option value="Administration" {% if item and item.functional_area == 'Administration' %}selected{% endif %}>Administration</option>
-                            <option value="Services- Electrical, Plumbing, Water" {% if item and item.functional_area == 'Services- Electrical, Plumbing, Water' %}selected{% endif %}>Services- Electrical, Plumbing, Water</option>
-                            <option value="Services- AC, Vehicles, Elevators" {% if item and item.functional_area == 'Services- AC, Vehicles, Elevators' %}selected{% endif %}>Services- AC, Vehicles, Elevators</option>
-                            <option value="Civil" {% if item and item.functional_area == 'Civil' %}selected{% endif %}>Civil</option>
-                        </select>
+                        <label for="statement_number" class="form-label fw-bold">Statement Number *</label>
+                        <input type="text" class="form-control" id="statement_number" name="statement_number" value="{{ item.statement_number if item else '' }}" required>
                     </div>
-                    {% endif %}
+                    <div class="mb-3">
+                        <label for="vendor" class="form-label fw-bold">Vendor Name</label>
+                        <input type="text" class="form-control" id="vendor" name="vendor" value="{{ item.vendor if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="statement_period" class="form-label fw-bold">Statement Period</label>
+                        <input type="text" class="form-control" id="statement_period" name="statement_period" placeholder="e.g. October 2026 or Q3 2026" value="{{ item.statement_period if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="date_received" class="form-label fw-bold">Date Received</label>
+                        <input type="date" class="form-control" id="date_received" name="date_received" value="{{ item.date_received if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label fw-bold">Statement Amount ($)</label>
+                        <input type="number" step="0.01" class="form-control" id="amount" name="amount" value="{{ item.amount if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="remarks" class="form-label fw-bold">Remarks / Notes</label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3">{{ item.remarks if item else '' }}</textarea>
+                    </div>
 
-                    {% if entity_type == 'requisitions' %}
-                        <div class="mb-3"><label class="form-label">Requisition Number</label><input type="text" class="form-control" name="requisition_number" value="{{ item.requisition_number if item else '' }}" required></div>
-                        <div class="mb-3"><label class="form-label">Transaction Date (MM/DD/YYYY)</label><input type="date" class="form-control" name="transaction_date" value="{{ item.transaction_date if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Quotation Number</label><input type="text" class="form-control" name="quotation_number" value="{{ item.quotation_number if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">POID</label><input type="text" class="form-control" name="poid" value="{{ item.poid if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Vendor Name</label><input type="text" class="form-control" name="vendor_name" value="{{ item.vendor_name if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Description</label><input type="text" class="form-control" name="description" value="{{ item.description if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Value</label><input type="number" step="0.01" class="form-control" name="value" value="{{ item.value if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks">{{ item.remarks if item else '' }}</textarea></div>
-                        <div class="mb-3"><label class="form-label">Date Sent to Bursary (MM/DD/YYYY)</label><input type="date" class="form-control" name="date_sent_to_bursary" value="{{ item.date_sent_to_bursary if item else '' }}"></div>
-
-                    {% elif entity_type == 'purchase_orders' %}
-                        <div class="mb-3"><label class="form-label">POID</label><input type="text" class="form-control" name="poid" value="{{ item.poid if item else '' }}" required></div>
-                        <div class="mb-3">
-                            <label class="form-label">Connect Requisition <span class="text-muted small">(auto-fills Functional Area, Vendor Name, Service & Amount)</span></label>
-                            <select class="form-select" name="requisition_id" id="reqSelect">
-                                <option value="">-- Select Requisition --</option>
-                                {% for req in requisitions %}
-                                    <option value="{{ req.id }}"
-                                            data-area="{{ req.functional_area or '' }}"
-                                            data-vendor="{{ req.vendor_name or '' }}"
-                                            data-service="{{ req.description or '' }}"
-                                            data-amount="{{ req.value or '' }}"
-                                            {% if item and (item.requisition_id|string) == (req.id|string) %}selected{% endif %}>
-                                        {{ req.requisition_number }} - {{ req.vendor_name }} (${{ "%.2f"|format(req.value or 0) }})
-                                    </option>
+                    {% elif entity_type == 'requisitions' %}
+                    <!-- REQUISITION FIELDS -->
+                    <div class="mb-3">
+                        <label for="requisition_number" class="form-label fw-bold">Requisition Number *</label>
+                        <input type="text" class="form-control" id="requisition_number" name="requisition_number" value="{{ item.requisition_number if item else '' }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="transaction_date" class="form-label fw-bold">Transaction Date</label>
+                            <input type="date" class="form-control" id="transaction_date" name="transaction_date" value="{{ item.transaction_date if item else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="quotation_number" class="form-label fw-bold">Quotation Number</label>
+                            <input type="text" class="form-control" id="quotation_number" name="quotation_number" value="{{ item.quotation_number if item else '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="poid" class="form-label fw-bold">POID (Optional Link)</label>
+                            <input type="text" class="form-control" id="poid" name="poid" value="{{ item.poid if item else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="vendor_name" class="form-label fw-bold">Vendor Name</label>
+                            <input type="text" class="form-control" id="vendor_name" name="vendor_name" value="{{ item.vendor_name if item else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label fw-bold">Description</label>
+                        <input type="text" class="form-control" id="description" name="description" value="{{ item.description if item else '' }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="value" class="form-label fw-bold">Value ($)</label>
+                            <input type="number" step="0.01" class="form-control" id="value" name="value" value="{{ item.value if item else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="functional_area" class="form-label fw-bold">Functional Area</label>
+                            <select class="form-select" id="functional_area" name="functional_area">
+                                <option value="">-- Select Area --</option>
+                                {% for area in ["Custodial/Grounds", "Stores", "Administration", "Services- Electrical, Plumbing, Water", "Services- AC, Vehicles, Elevators", "Civil"] %}
+                                <option value="{{ area }}" {% if item and item.functional_area == area %}selected{% endif %}>{{ area }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="mb-3"><label class="form-label">Vendor Name</label><input type="text" class="form-control" name="vendor_name" id="vendorInput" value="{{ item.vendor_name if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">PO Amount</label><input type="number" step="0.01" class="form-control" name="po_amount" id="amountInput" value="{{ item.po_amount if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Date (MM/DD/YYYY)</label><input type="date" class="form-control" name="date" value="{{ item.date if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Service</label><input type="text" class="form-control" name="service" id="serviceInput" value="{{ item.service if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks">{{ item.remarks if item else '' }}</textarea></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date_sent_to_bursary" class="form-label fw-bold">Date Sent to Bursary</label>
+                        <input type="date" class="form-control" id="date_sent_to_bursary" name="date_sent_to_bursary" value="{{ item.date_sent_to_bursary if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="remarks" class="form-label fw-bold">Remarks</label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3">{{ item.remarks if item else '' }}</textarea>
+                    </div>
+
+                    {% elif entity_type == 'purchase_orders' %}
+                    <!-- PURCHASE ORDER FIELDS -->
+                    <div class="mb-3">
+                        <label for="poid" class="form-label fw-bold">POID *</label>
+                        <input type="text" class="form-control" id="poid" name="poid" value="{{ item.poid if item else '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="requisition_id" class="form-label fw-bold">Linked Requisition</label>
+                        <select class="form-select" id="requisition_id" name="requisition_id">
+                            <option value="">-- None --</option>
+                            {% for req in requisitions %}
+                            <option value="{{ req.id }}" {% if item and item.requisition_id == req.id %}selected{% endif %}>{{ req.requisition_number }} ({{ req.vendor_name }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="vendor_name" class="form-label fw-bold">Vendor Name</label>
+                            <input type="text" class="form-control" id="vendor_name" name="vendor_name" value="{{ item.vendor_name if item else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="po_amount" class="form-label fw-bold">PO Amount ($)</label>
+                            <input type="number" step="0.01" class="form-control" id="po_amount" name="po_amount" value="{{ item.po_amount if item else '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="date" class="form-label fw-bold">PO Date</label>
+                            <input type="date" class="form-control" id="date" name="date" value="{{ item.date if item else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="functional_area" class="form-label fw-bold">Functional Area</label>
+                            <select class="form-select" id="functional_area" name="functional_area">
+                                <option value="">-- Select Area --</option>
+                                {% for area in ["Custodial/Grounds", "Stores", "Administration", "Services- Electrical, Plumbing, Water", "Services- AC, Vehicles, Elevators", "Civil"] %}
+                                <option value="{{ area }}" {% if item and item.functional_area == area %}selected{% endif %}>{{ area }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="service" class="form-label fw-bold">Service / Description</label>
+                        <input type="text" class="form-control" id="service" name="service" value="{{ item.service if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="remarks" class="form-label fw-bold">Remarks</label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3">{{ item.remarks if item else '' }}</textarea>
+                    </div>
 
                     {% elif entity_type == 'invoices' %}
-                        <div class="mb-3"><label class="form-label">Invoice Number</label><input type="text" class="form-control" name="invoice_number" value="{{ item.invoice_number if item else '' }}" required></div>
-                        <div class="mb-3"><label class="form-label">Invoice Date (MM/DD/YYYY)</label><input type="date" class="form-control" name="invoice_date" value="{{ item.invoice_date if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Vendor Name</label><input type="text" class="form-control" name="vendor_name" id="vendorInput" value="{{ item.vendor_name if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Invoice Amount</label><input type="number" step="0.01" class="form-control" name="invoice_amount" id="amountInput" value="{{ item.invoice_amount if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Date Received (MM/DD/YYYY)</label><input type="date" class="form-control" name="date_received" value="{{ item.date_received if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Invoice Details</label><input type="text" class="form-control" name="invoice_details" value="{{ item.invoice_details if item else '' }}"></div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label">POID (Connect Purchase Order)</label>
-                                <select class="form-select" name="purchase_order_id" id="poSelect">
-                                    <option value="" data-remaining="">-- Select PO --</option>
-                                    {% for po in purchase_orders %}
-                                        {% set billed = po.invoices | sum(attribute='invoice_amount') %}
-                                        {% set rem = (po.po_amount or 0) - (billed or 0) %}
-                                        <option value="{{ po.id }}"
-                                                data-vendor="{{ po.vendor_name or '' }}"
-                                                data-service="{{ po.service or '' }}"
-                                                data-remaining="{{ rem }}"
-                                                {% if item and (item.purchase_order_id|string) == (po.id|string) %}selected{% endif %}>
-                                            {{ po.poid }} - {{ po.vendor_name }} (Rem: ${{ "%.2f"|format(rem) }})
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3"><label class="form-label">Batch ID (Lookup)</label>
-                                <select class="form-select" name="batch_summary_id">
-                                    <option value="">-- Select Batch --</option>
-                                    {% for batch in batches %}
-                                        <option value="{{ batch.id }}" {% if item and (item.batch_summary_id|string) == (batch.id|string) %}selected{% endif %}>{{ batch.batch_number }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                    <!-- INVOICE FIELDS -->
+                    <div class="mb-3">
+                        <label for="invoice_number" class="form-label fw-bold">Invoice Number *</label>
+                        <input type="text" class="form-control" id="invoice_number" name="invoice_number" value="{{ item.invoice_number if item else '' }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="invoice_date" class="form-label fw-bold">Invoice Date</label>
+                            <input type="date" class="form-control" id="invoice_date" name="invoice_date" value="{{ item.invoice_date if item else '' }}">
                         </div>
-
-                        <div id="poOverbillAlert" class="alert alert-warning py-2 px-3 mb-3 small d-none">
-                            <i class="bi bi-exclamation-triangle-fill"></i> <strong>Audit Warning:</strong> This invoice amount exceeds the selected PO's remaining balance!
+                        <div class="col-md-6 mb-3">
+                            <label for="date_received" class="form-label fw-bold">Date Received</label>
+                            <input type="date" class="form-control" id="date_received" name="date_received" value="{{ item.date_received if item else '' }}">
                         </div>
-
-                        <div class="mb-3"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks">{{ item.remarks if item else '' }}</textarea></div>
-
-                        <div class="row">
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Sent to Nekeisha</label><input type="date" class="form-control" name="date_sent_to_nekeisha" value="{{ item.date_sent_to_nekeisha if item else '' }}"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Returned from Nekeisha</label><input type="date" class="form-control" name="date_returned_from_nekeisha" value="{{ item.date_returned_from_nekeisha if item else '' }}"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Sent to TA</label><input type="date" class="form-control" name="date_sent_to_ta" value="{{ item.date_sent_to_ta if item else '' }}"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="vendor_name" class="form-label fw-bold">Vendor Name</label>
+                            <input type="text" class="form-control" id="vendor_name" name="vendor_name" value="{{ item.vendor_name if item else '' }}">
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Returned from TA</label><input type="date" class="form-control" name="date_returned_from_ta" value="{{ item.date_returned_from_ta if item else '' }}"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Sent to OM</label><input type="date" class="form-control" name="date_sent_to_om" value="{{ item.date_sent_to_om if item else '' }}"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Returned from OM</label><input type="date" class="form-control" name="date_returned_from_om" value="{{ item.date_returned_from_om if item else '' }}"></div>
+                        <div class="col-md-6 mb-3">
+                            <label for="invoice_amount" class="form-label fw-bold">Invoice Amount ($)</label>
+                            <input type="number" step="0.01" class="form-control" id="invoice_amount" name="invoice_amount" value="{{ item.invoice_amount if item else '' }}">
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3"><label class="form-label">Date Submitted to Bursary</label><input type="date" class="form-control" name="date_submitted_to_bursary" value="{{ item.date_submitted_to_bursary if item else '' }}"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Bursary Date Batch</label><input type="text" class="form-control" name="bursary_date_batch" value="{{ item.bursary_date_batch if item else '' }}"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Payment Received</label><input type="date" class="form-control" name="payment_received" value="{{ item.payment_received if item else '' }}"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="purchase_order_id" class="form-label fw-bold">Linked Purchase Order (POID)</label>
+                            <select class="form-select" id="purchase_order_id" name="purchase_order_id">
+                                <option value="">-- None --</option>
+                                {% for po in purchase_orders %}
+                                <option value="{{ po.id }}" {% if item and item.purchase_order_id == po.id %}selected{% endif %}>{{ po.poid }} ({{ po.vendor_name }})</option>
+                                {% endfor %}
+                            </select>
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="vendor_statement_id" class="form-label fw-bold">Vendor Statement</label>
+                            <select class="form-select" id="vendor_statement_id" name="vendor_statement_id">
+                                <option value="">-- None --</option>
+                                {% for stmt in statements %}
+                                <option value="{{ stmt.id }}" {% if item and item.vendor_statement_id == stmt.id %}selected{% endif %}>{{ stmt.statement_number }} ({{ stmt.vendor }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="invoice_details" class="form-label fw-bold">Invoice Details</label>
+                        <input type="text" class="form-control" id="invoice_details" name="invoice_details" value="{{ item.invoice_details if item else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="batch_summary_id" class="form-label fw-bold">Batch Summary</label>
+                        <select class="form-select" id="batch_summary_id" name="batch_summary_id">
+                            <option value="">-- None --</option>
+                            {% for b in batches %}
+                            <option value="{{ b.id }}" {% if item and item.batch_summary_id == b.id %}selected{% endif %}>{{ b.batch_number }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="date_sent_to_nekeisha" class="form-label fw-bold">Sent to Nekeisha</label>
+                            <input type="date" class="form-control" id="date_sent_to_nekeisha" name="date_sent_to_nekeisha" value="{{ item.date_sent_to_nekeisha if item else '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="date_returned_from_nekeisha" class="form-label fw-bold">Returned from Nekeisha</label>
+                            <input type="date" class="form-control" id="date_returned_from_nekeisha" name="date_returned_from_nekeisha" value="{{ item.date_returned_from_nekeisha if item else '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="date_submitted_to_bursary" class="form-label fw-bold">Submitted to Bursary</label>
+                            <input type="date" class="form-control" id="date_submitted_to_bursary" name="date_submitted_to_bursary" value="{{ item.date_submitted_to_bursary if item else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="remarks" class="form-label fw-bold">Remarks</label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3">{{ item.remarks if item else '' }}</textarea>
+                    </div>
 
                     {% elif entity_type == 'batches' %}
-                        <div class="mb-3"><label class="form-label">Batch Number</label><input type="text" class="form-control" name="batch_number" value="{{ item.batch_number if item else '' }}" required></div>
-                        <div class="mb-3"><label class="form-label">Period Collected</label><input type="text" class="form-control" name="period_collected" value="{{ item.period_collected if item else '' }}"></div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label">Date Sent for Review</label><input type="date" class="form-control" name="date_sent_for_review" value="{{ item.date_sent_for_review if item else '' }}"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label">Date Reviewed</label><input type="date" class="form-control" name="date_reviewed" value="{{ item.date_reviewed if item else '' }}"></div>
+                    <!-- BATCH SUMMARY FIELDS -->
+                    <div class="mb-3">
+                        <label for="batch_number" class="form-label fw-bold">Batch Number *</label>
+                        <input type="text" class="form-control" id="batch_number" name="batch_number" value="{{ item.batch_number if item else '' }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="functional_area" class="form-label fw-bold">Functional Area</label>
+                            <select class="form-select" id="functional_area" name="functional_area">
+                                <option value="">-- Select Area --</option>
+                                {% for area in ["Custodial/Grounds", "Stores", "Administration", "Services- Electrical, Plumbing, Water", "Services- AC, Vehicles, Elevators", "Civil"] %}
+                                <option value="{{ area }}" {% if item and item.functional_area == area %}selected{% endif %}>{{ area }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label">Date Sent to TA</label><input type="date" class="form-control" name="date_sent_to_ta" value="{{ item.date_sent_to_ta if item else '' }}"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label">Date Received from TA</label><input type="date" class="form-control" name="date_received_from_ta" value="{{ item.date_received_from_ta if item else '' }}"></div>
+                        <div class="col-md-6 mb-3">
+                            <label for="period_collected" class="form-label fw-bold">Period Collected</label>
+                            <input type="text" class="form-control" id="period_collected" name="period_collected" value="{{ item.period_collected if item else '' }}">
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label">Date Sent to OM</label><input type="date" class="form-control" name="date_sent_to_om" value="{{ item.date_sent_to_om if item else '' }}"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label">Date Received from OM</label><input type="date" class="form-control" name="date_received_from_om" value="{{ item.date_received_from_om if item else '' }}"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="date_sent_for_review" class="form-label fw-bold">Date Sent for Review</label>
+                            <input type="date" class="form-control" id="date_sent_for_review" name="date_sent_for_review" value="{{ item.date_sent_for_review if item else '' }}">
                         </div>
-                        <div class="mb-3"><label class="form-label">Submission Date</label><input type="date" class="form-control" name="submission_date" value="{{ item.submission_date if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks">{{ item.remarks if item else '' }}</textarea></div>
-
-                    {% elif entity_type == 'statements' %}
-                        <div class="mb-3"><label class="form-label">Statement Number / Reference</label><input type="text" class="form-control" name="statement_number" value="{{ item.statement_number if item else '' }}" required></div>
-                        <div class="mb-3"><label class="form-label">Vendor</label><input type="text" class="form-control" name="vendor" value="{{ item.vendor if item else '' }}" required></div>
-                        <div class="mb-3"><label class="form-label">Statement Period (e.g., Nov 2026)</label><input type="text" class="form-control" name="statement_period" value="{{ item.statement_period if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Date Received</label><input type="date" class="form-control" name="date_received" value="{{ item.date_received if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Statement Balance / Amount</label><input type="number" step="0.01" class="form-control" name="amount" value="{{ item.amount if item else '' }}"></div>
-                        <div class="mb-3"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks">{{ item.remarks if item else '' }}</textarea></div>
+                        <div class="col-md-6 mb-3">
+                            <label for="submission_date" class="form-label fw-bold">Submission Date</label>
+                            <input type="date" class="form-control" id="submission_date" name="submission_date" value="{{ item.submission_date if item else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="remarks" class="form-label fw-bold">Remarks</label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3">{{ item.remarks if item else '' }}</textarea>
+                    </div>
                     {% endif %}
 
-                    <button type="submit" name="action" value="save" class="btn btn-success w-100 mt-2">Update / Save Record</button>
+                    <!-- PDF File Upload Field -->
+                    <div class="mb-4">
+                        <label for="pdf_file" class="form-label fw-bold">Attach PDF Document</label>
+                        <input type="file" class="form-control" id="pdf_file" name="pdf_file" accept=".pdf">
+                        {% if item and item.pdf_filename %}
+                        <div class="form-text text-success mt-1">
+                            <i class="bi bi-file-earmark-pdf"></i> Current attachment: <a href="{{ url_for('uploaded_file', filename=item.pdf_filename) }}" target="_blank">{{ item.pdf_filename }}</a>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('list_entities', entity_type=entity_type) }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">Save Record</button>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const areaSelect = document.getElementById('functionalAreaSelect');
-        const reqSelect = document.getElementById('reqSelect');
-        const poSelect = document.getElementById('poSelect');
-        const vendorInput = document.getElementById('vendorInput');
-        const serviceInput = document.getElementById('serviceInput');
-        const amtInput = document.getElementById('amountInput') || document.querySelector('input[name="po_amount"]') || document.querySelector('input[name="invoice_amount"]');
-        const alertBox = document.getElementById('poOverbillAlert');
-
-        if (reqSelect) {
-            reqSelect.addEventListener('change', function() {
-                const opt = reqSelect.options[reqSelect.selectedIndex];
-                if (!opt || !opt.value) return;
-                const area = opt.getAttribute('data-area');
-                const vendor = opt.getAttribute('data-vendor');
-                const service = opt.getAttribute('data-service');
-                const amt = opt.getAttribute('data-amount');
-
-                if (area && areaSelect && !areaSelect.value) areaSelect.value = area;
-                if (vendor && vendorInput && !vendorInput.value) vendorInput.value = vendor;
-                if (service && serviceInput && !serviceInput.value) serviceInput.value = service;
-                if (amt && amtInput && !amtInput.value) amtInput.value = parseFloat(amt).toFixed(2);
-            });
-        }
-
-        function checkOverbill() {
-            if (!poSelect || !amtInput || !alertBox) return;
-            const selected = poSelect.options[poSelect.selectedIndex];
-            const remStr = selected ? selected.getAttribute('data-remaining') : '';
-            const amt = parseFloat(amtInput.value) || 0;
-            if (remStr !== '' && amt > parseFloat(remStr)) {
-                alertBox.classList.remove('d-none');
-            } else {
-                alertBox.classList.add('d-none');
-            }
-        }
-
-        if (poSelect) {
-            poSelect.addEventListener('change', function() {
-                const opt = poSelect.options[poSelect.selectedIndex];
-                if (opt && opt.value) {
-                    const vendor = opt.getAttribute('data-vendor');
-                    const rem = parseFloat(opt.getAttribute('data-remaining'));
-
-                    if (vendor && vendorInput && !vendorInput.value) vendorInput.value = vendor;
-                    if (!isNaN(rem) && rem > 0 && amtInput && !amtInput.value) {
-                        amtInput.value = rem.toFixed(2);
-                    }
-                }
-                checkOverbill();
-            });
-        }
-
-        if (amtInput) {
-            amtInput.addEventListener('input', checkOverbill);
-            checkOverbill();
-        }
-    });
-</script>
 {% endblock %}

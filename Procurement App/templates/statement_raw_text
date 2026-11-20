@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-primary mb-0"><i class="bi bi-file-text"></i> Raw PDF Extracted Text</h2>
+        <p class="text-muted small mb-0">
+            Statement: <strong>{{ statement.statement_number }}</strong> | Vendor: <strong>{{ statement.vendor or 'N/A' }}</strong> | Method: <span class="badge bg-secondary">{{ extraction_method }}</span>
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if statement.pdf_filename %}
+        <a href="{{ url_for('uploaded_file', filename=statement.pdf_filename) }}" target="_blank" class="btn btn-outline-secondary fw-bold">
+            <i class="bi bi-file-earmark-pdf"></i> Open Original PDF
+        </a>
+        {% endif %}
+        <a href="{{ url_for('statement_report', statement_id=statement.id) }}" class="btn btn-outline-primary fw-bold">
+            Back to Statement Report
+        </a>
+        <a href="{{ url_for('list_entities', entity_type='statements') }}" class="btn btn-secondary fw-bold">
+            Back to Statements
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-dark text-white fw-bold">
+        Extracted Text Output ({{ statement.pdf_filename or 'No PDF' }})
+    </div>
+    <div class="card-body bg-light">
+        <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word; font-size: 0.875rem;">{{ raw_text }}</pre>
+    </div>
+</div>
+{% endblock %}

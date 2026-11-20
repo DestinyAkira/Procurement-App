@@ -1,47 +1,134 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h2><i class="bi bi-graph-up text-warning"></i> Bursary Compliance Reports & Analytics</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-primary mb-0"><i class="bi bi-graph-up"></i> Reports &amp; Audit Hub</h2>
+        <p class="text-muted small mb-0">Procurement reconciliation, PO overrun alerts, invoice audit trails, and statement invoice reporting.</p>
+    </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('export_excel_report', target_month=selected_month) }}" class="btn btn-success btn-sm fw-bold">
-            <i class="bi bi-file-earmark-excel"></i> Export All Sheets (.xlsx)
+        <a href="{{ url_for('export_excel_report', target_month=selected_month) }}" class="btn btn-success fw-bold">
+            <i class="bi bi-file-earmark-excel"></i> Download Full Excel Report (4 Sheets)
         </a>
-        <a href="{{ url_for('reports_hub') }}" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
+        <a href="{{ url_for('backup_db') }}" class="btn btn-outline-secondary fw-bold">
+            <i class="bi bi-download"></i> Backup Database (.db)
+        </a>
     </div>
 </div>
 
-<!-- Report 1: Outstanding Requisitions -->
-<div class="card shadow-sm mb-5">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Outstanding Requisitions (Pending Purchase Order)</h5>
-        <a href="{{ url_for('export_report', report_type='requisitions') }}" class="btn btn-light btn-sm fw-bold"><i class="bi bi-download"></i> Export CSV</a>
+<!-- 4 Summaries Strip -->
+<div class="row row-cols-1 row-cols-md-4 g-3 mb-4">
+    <div class="col">
+        <a href="#unlinkedRequisitionsSection" class="text-decoration-none" onclick="openAuditSection('unlinkedRequisitionsCollapse')">
+            <div class="card shadow-sm border-start border-warning border-4 h-100">
+                <div class="card-body py-2">
+                    <div class="text-muted small text-uppercase fw-bold">Unlinked Requisitions</div>
+                    <div class="fs-4 fw-bold text-dark">{{ outstanding_reqs|length }}</div>
+                    <div class="small text-muted">${{ "{:,.2f}".format(outstanding_reqs_total) }} pending PO &rarr; View Table</div>
+                </div>
+            </div>
+        </a>
     </div>
-    <div class="card-body">
+    <div class="col">
+        <a href="#posInvoicedSection" class="text-decoration-none" onclick="openAuditSection('posInvoicedCollapse')">
+            <div class="card shadow-sm border-start border-primary border-4 h-100">
+                <div class="card-body py-2">
+                    <div class="text-muted small text-uppercase fw-bold">POs Invoiced</div>
+                    <div class="fs-4 fw-bold text-primary">{{ po_report_data|length }}</div>
+                    <div class="small text-muted">${{ "{:,.2f}".format(grand_inv_total) }} invoiced &rarr; View Table</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col">
+        <a href="#unsubmittedInvoicesSection" class="text-decoration-none" onclick="openAuditSection('unsubmittedInvoicesCollapse')">
+            <div class="card shadow-sm border-start border-danger border-4 h-100">
+                <div class="card-body py-2">
+                    <div class="text-muted small text-uppercase fw-bold">Unsubmitted Invoices</div>
+                    <div class="fs-4 fw-bold text-danger">{{ unsubmitted_invoices|length }}</div>
+                    <div class="small text-muted">Out of {{ all_invoices|length }} total invoices &rarr; View Table</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col">
+        <a href="#invoiceReportingSection" class="text-decoration-none" onclick="openAuditSection('invoiceReportingCollapse')">
+            <div class="card shadow-sm border-start border-info border-4 h-100">
+                <div class="card-body py-2">
+                    <div class="text-muted small text-uppercase fw-bold">Invoice Reporting</div>
+                    <div class="fs-4 fw-bold text-info">{{ invoice_reporting_rows|length }}</div>
+                    <div class="small text-muted">${{ "{:,.2f}".format(invoice_reporting_total) }} reported &rarr; View Table</div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Month Selector & Live Filter Bar -->
+<div class="card shadow-sm mb-4 border-primary">
+    <div class="card-body py-3">
+        <div class="row g-3 align-items-center justify-content-between">
+            <div class="col-md-7">
+                <form method="GET" action="{{ url_for('reports_hub') }}" class="row g-2 align-items-center">
+                    <div class="col-auto fw-bold text-secondary">Target Cutoff Month (15th):</div>
+                    <div class="col-auto">
+                        <input type="month" name="target_month" value="{{ selected_month }}" class="form-control form-control-sm" onchange="this.form.submit()">
+                    </div>
+                    <div class="col-auto text-muted small">
+                        Default Date: <strong>{{ target_15th }}</strong>
+                    </div>
+                </form>
+            </div>
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                    <input type="text" id="hubSearchInput" class="form-control" placeholder="Filter all report tables by vendor, POID, Req #, or Invoice #...">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 1. Unlinked Requisitions Table -->
+<div id="unlinkedRequisitionsSection" class="card shadow-sm mb-4 border-warning">
+    <div class="card-header bg-warning text-dark fw-bold d-flex justify-content-between align-items-center"
+         data-bs-toggle="collapse" data-bs-target="#unlinkedRequisitionsCollapse" style="cursor: pointer;">
+        <span><i class="bi bi-exclamation-triangle"></i> Unlinked Requisitions</span>
+        <a href="{{ url_for('export_report', report_type='requisitions') }}" class="btn btn-sm btn-dark fw-bold" onclick="event.stopPropagation();">Export CSV</a>
+    </div>
+    <div id="unlinkedRequisitionsCollapse" class="collapse show">
         <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle">
-                <thead>
-                    <tr><th>Req #</th><th>Functional Area</th><th>Quote #</th><th>Date</th><th>Vendor</th><th>Job</th><th>Amount</th></tr>
+            <table class="table table-hover table-striped align-middle mb-0 audit-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Req #</th>
+                        <th>Date</th>
+                        <th>Sent to Bursary</th>
+                        <th>Vendor</th>
+                        <th>Description</th>
+                        <th class="text-end">Value</th>
+                    </tr>
                 </thead>
                 <tbody>
                     {% for r in outstanding_reqs %}
                     <tr>
                         <td class="fw-bold">{{ r.requisition_number }}</td>
-                        <td><span class="badge bg-secondary">{{ r.functional_area or '-' }}</span></td>
-                        <td>{{ r.quote_number or '-' }}</td>
-                        <td>{{ r.date or '-' }}</td>
-                        <td>{{ r.vendor or '-' }}</td>
-                        <td>{{ r.job or '-' }}</td>
-                        <td>${{ "%.2f"|format(r.amount or 0) }}</td>
+                        <td>{{ format_date_us(r.transaction_date) }}</td>
+                        <td>{{ format_date_us(r.date_sent_to_bursary) or 'Pending' }}</td>
+                        <td>{{ r.vendor_name or '' }}</td>
+                        <td>{{ r.description or '' }}</td>
+                        <td class="text-end fw-bold">${{ "{:,.2f}".format(r.value or 0) }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" class="text-center text-muted py-3">All requisitions have been linked to Purchase Orders!</td></tr>
+                    <tr>
+                        <td colspan="6" class="text-center py-3 text-muted">All requisitions are linked to purchase orders.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
                 {% if outstanding_reqs %}
                 <tfoot>
-                    <tr class="fw-bold table-light">
-                        <td colspan="6" class="text-end">Total Outstanding Amount:</td>
-                        <td>${{ "%.2f"|format(outstanding_reqs_total) }}</td>
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="5" class="text-end">TOTAL OUTSTANDING:</td>
+                        <td class="text-end">${{ "{:,.2f}".format(outstanding_reqs_total) }}</td>
                     </tr>
                 </tfoot>
                 {% endif %}
@@ -50,96 +137,56 @@
     </div>
 </div>
 
-<!-- Report 2: Purchase Order vs Invoices Balance Check -->
-<div class="card shadow-sm mb-5">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-cart-check"></i> Purchase Order vs Invoiced Amounts</h5>
-        <a href="{{ url_for('export_report', report_type='purchase_orders') }}" class="btn btn-light btn-sm fw-bold"><i class="bi bi-download"></i> Export CSV</a>
+<!-- 2. POs Invoiced Table -->
+<div id="posInvoicedSection" class="card shadow-sm mb-4 border-primary">
+    <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center"
+         data-bs-toggle="collapse" data-bs-target="#posInvoicedCollapse" style="cursor: pointer;">
+        <span><i class="bi bi-file-earmark-text"></i> POs Invoiced</span>
+        <a href="{{ url_for('export_report', report_type='purchase_orders') }}" class="btn btn-sm btn-light fw-bold" onclick="event.stopPropagation();">Export CSV</a>
     </div>
-    <div class="card-body">
+    <div id="posInvoicedCollapse" class="collapse show">
         <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle">
-                <thead>
-                    <tr><th>PO #</th><th>Functional Area</th><th>Vendor</th><th>PO Amount</th><th>Invoiced Total</th><th>Remaining Balance</th><th>Linked Invoices</th></tr>
+            <table class="table table-hover table-striped align-middle mb-0 audit-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>POID</th>
+                        <th>Vendor</th>
+                        <th>Functional Area</th>
+                        <th>Service</th>
+                        <th class="text-end">PO Amount</th>
+                        <th class="text-end">Invoiced Total</th>
+                        <th class="text-end">Balance Remaining</th>
+                    </tr>
                 </thead>
                 <tbody>
-                    {% for entry in po_report_data %}
-                    <tr>
-                        <td class="fw-bold">{{ entry.po.po_number }}</td>
-                        <td><span class="badge bg-secondary">{{ entry.po.functional_area or '-' }}</span></td>
-                        <td>{{ entry.po.vendor or '-' }}</td>
-                        <td>${{ "%.2f"|format(entry.po_total) }}</td>
-                        <td>${{ "%.2f"|format(entry.invoices_total) }}</td>
-                        <td class="fw-bold {{ 'text-danger' if entry.balance < 0 else 'text-success' }}">${{ "%.2f"|format(entry.balance) }}</td>
-                        <td>
-                            {% for inv in entry.invoices %}
-                                <span class="badge bg-info text-dark">{{ inv.invoice_number }} (${{ "%.2f"|format(inv.amount or 0) }})</span>
-                            {% else %}
-                                <span class="text-muted small">None</span>
-                            {% endfor %}
+                    {% for item in po_report_data %}
+                    <tr class="{% if item.balance < 0 %}table-danger{% endif %}">
+                        <td class="fw-bold">
+                            {{ item.po.poid }}
+                            {% if item.balance < 0 %}<span class="badge bg-danger ms-1">OVERRUN</span>{% endif %}
                         </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr class="fw-bold table-light">
-                        <td colspan="3" class="text-end">Grand Totals:</td>
-                        <td>${{ "%.2f"|format(grand_po_total) }}</td>
-                        <td>${{ "%.2f"|format(grand_inv_total) }}</td>
-                        <td colspan="2">${{ "%.2f"|format(grand_po_total - grand_inv_total) }}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- Report 3: Overdue Invoices / Bursary Submission Audit -->
-<div class="card shadow-sm mb-5">
-    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h5 class="mb-0"><i class="bi bi-receipt"></i> Overdue Invoices Audit (Target 15th: {{ target_15th }})</h5>
-        <form method="GET" action="{{ url_for('reports_hub') }}" class="d-flex align-items-center gap-2">
-            <input type="month" name="target_month" class="form-control form-control-sm" value="{{ selected_month }}">
-            <button type="submit" class="btn btn-dark btn-sm">Filter</button>
-            <a href="{{ url_for('export_report', report_type='invoices', target_month=selected_month) }}" class="btn btn-dark btn-sm"><i class="bi bi-download"></i> Export CSV</a>
-        </form>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle">
-                <thead>
-                    <tr><th>Invoice #</th><th>Functional Area</th><th>PO #</th><th>Invoice Date</th><th>Submission Date</th><th>Days Prior</th><th>Amount</th><th>Statement # & Details</th></tr>
-                </thead>
-                <tbody>
-                    {% for entry in overdue_invoices %}
-                    {% set inv = entry.invoice %}
-                    {% set stmt = inv.statement %}
-                    <tr>
-                        <td class="fw-bold">{{ inv.invoice_number }}</td>
-                        <td><span class="badge bg-secondary">{{ inv.functional_area or '-' }}</span></td>
-                        <td>{{ inv.purchase_order.po_number if inv.purchase_order else '-' }}</td>
-                        <td>{{ inv.date or '-' }}</td>
-                        <td>{{ inv.date_sent_to_bursary or 'Not Sent' }}</td>
-                        <td><span class="badge bg-danger">{{ entry.days_before_15th }} days</span></td>
-                        <td>${{ "%.2f"|format(inv.amount or 0) }}</td>
-                        <td>
-                            {% if stmt %}
-                                <strong class="text-primary">{{ stmt.statement_number }}</strong> ({{ stmt.vendor }})<br>
-                                <small class="text-muted">Period: {{ stmt.statement_period or '-' }} | Recv: {{ stmt.date_received or '-' }} | Bal: ${{ "%.2f"|format(stmt.amount or 0) }}</small>
-                            {% else %}
-                                <span class="text-muted fst-italic">Unlinked to statement</span>
-                            {% endif %}
+                        <td>{{ item.po.vendor_name or '' }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ item.po.functional_area or 'N/A' }}</span></td>
+                        <td>{{ item.po.service or '' }}</td>
+                        <td class="text-end">${{ "{:,.2f}".format(item.po_total) }}</td>
+                        <td class="text-end fw-bold text-success">${{ "{:,.2f}".format(item.invoices_total) }}</td>
+                        <td class="text-end fw-bold {% if item.balance < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                            ${{ "{:,.2f}".format(item.balance) }}
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="8" class="text-center text-muted py-3">No overdue invoices found for this period.</td></tr>
+                    <tr>
+                        <td colspan="7" class="text-center py-3 text-muted">No purchase orders found.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
-                {% if overdue_invoices %}
+                {% if po_report_data %}
                 <tfoot>
-                    <tr class="fw-bold table-light">
-                        <td colspan="6" class="text-end">Total Overdue Amount:</td>
-                        <td colspan="2">${{ "%.2f"|format(overdue_invoices_total) }}</td>
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="4" class="text-end">GRAND TOTALS:</td>
+                        <td class="text-end">${{ "{:,.2f}".format(grand_po_total) }}</td>
+                        <td class="text-end text-success">${{ "{:,.2f}".format(grand_inv_total) }}</td>
+                        <td class="text-end">${{ "{:,.2f}".format(grand_po_total - grand_inv_total) }}</td>
                     </tr>
                 </tfoot>
                 {% endif %}
@@ -147,4 +194,191 @@
         </div>
     </div>
 </div>
+
+<!-- 3. Unsubmitted Invoices Table -->
+<div id="unsubmittedInvoicesSection" class="card shadow-sm mb-4 border-danger">
+    <div class="card-header bg-danger text-white fw-bold d-flex justify-content-between align-items-center"
+         data-bs-toggle="collapse" data-bs-target="#unsubmittedInvoicesCollapse" style="cursor: pointer;">
+        <span><i class="bi bi-hourglass-split"></i> Unsubmitted Invoices ({{ unsubmitted_invoices|length }})</span>
+        <span class="badge bg-light text-danger">Awaiting Bursary</span>
+    </div>
+    <div id="unsubmittedInvoicesCollapse" class="collapse show">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0 audit-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Invoice Date</th>
+                        <th>Vendor</th>
+                        <th>POID</th>
+                        <th>Statement #</th>
+                        <th class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in unsubmitted_invoices %}
+                    <tr>
+                        <td class="fw-bold">{{ inv.invoice_number }}</td>
+                        <td>{{ format_date_us(inv.invoice_date) }}</td>
+                        <td>{{ inv.vendor_name or '' }}</td>
+                        <td><span class="badge bg-secondary">{{ inv.purchase_order.poid if inv.purchase_order else 'None' }}</span></td>
+                        <td>{{ inv.statement.statement_number if inv.statement else 'None' }}</td>
+                        <td class="text-end fw-bold">${{ "{:,.2f}".format(inv.invoice_amount or 0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-3 text-muted">All recorded invoices have a Bursary submission date.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 4. Invoice Reporting Table -->
+<div id="invoiceReportingSection" class="card shadow-sm mb-4 border-info">
+    <div class="card-header bg-info text-dark fw-bold d-flex justify-content-between align-items-center"
+         data-bs-toggle="collapse" data-bs-target="#invoiceReportingCollapse" style="cursor: pointer;">
+        <span><i class="bi bi-list-check"></i> Invoice Reporting</span>
+        <span class="badge bg-dark">{{ before_cutoff_count }} Submitted &le; {{ cutoff_date }}</span>
+    </div>
+    <div id="invoiceReportingCollapse" class="collapse show">
+        <div class="card-body border-bottom bg-light">
+            <form method="GET" action="{{ url_for('reports_hub') }}" id="invoiceReportingForm" class="row g-3 align-items-end">
+                <input type="hidden" name="target_month" value="{{ selected_month }}">
+                <div class="col-md-3">
+                    <label for="periodSelect" class="form-label small fw-bold mb-1">Statement Period</label>
+                    <select name="statement_period" id="periodSelect" class="form-select form-select-sm" onchange="selectStatementsByPeriod()">
+                        <option value="">All Periods</option>
+                        {% for period in available_periods %}
+                        <option value="{{ period }}" {% if period == selected_period %}selected{% endif %}>{{ period }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="statementSelect" class="form-label small fw-bold mb-0">Statements in Period</label>
+                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="selectAllVisibleStatements()">Select All Listed</button>
+                    </div>
+                    <select name="statement_ids" id="statementSelect" class="form-select form-select-sm" multiple size="3">
+                        {% for stmt in statements %}
+                        <option value="{{ stmt.id }}"
+                                data-period="{{ (stmt.statement_period or '')|e }}"
+                                {% if stmt.id in selected_statement_ids %}selected{% endif %}>
+                            {{ stmt.statement_number }} - {{ stmt.vendor or 'No Vendor' }} ({{ stmt.statement_period or 'No Period' }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="cutoffDateInput" class="form-label small fw-bold mb-1">Cutoff Date</label>
+                    <input type="date" name="cutoff_date" id="cutoffDateInput" value="{{ cutoff_date }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-info fw-bold text-dark">Apply Selection</button>
+                    <a href="{{ url_for('reports_hub', target_month=selected_month) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 audit-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Vendor</th>
+                        <th>Invoice Date</th>
+                        <th>Date Received</th>
+                        <th>POID</th>
+                        <th>Submitted to Bursary</th>
+                        <th class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in invoice_reporting_rows %}
+                    <tr class="{% if row.before_cutoff %}table-success{% endif %}">
+                        <td class="fw-bold">{{ row.invoice_number }}</td>
+                        <td>{{ row.vendor }}</td>
+                        <td>{{ format_date_us(row.invoice_date) }}</td>
+                        <td>{{ format_date_us(row.date_received) or 'N/A' }}</td>
+                        <td><span class="badge bg-secondary">{{ row.poid }}</span></td>
+                        <td>{{ format_date_us(row.date_submitted) or 'Not Submitted' }}</td>
+                        <td class="text-end fw-bold">${{ "{:,.2f}".format(row.amount or 0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-3 text-muted">No invoices found for the selected statements.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if invoice_reporting_rows %}
+                <tfoot>
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="6" class="text-end">TOTAL REPORTED INVOICES:</td>
+                        <td class="text-end">${{ "{:,.2f}".format(invoice_reporting_total) }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function openAuditSection(collapseId) {
+    const target = document.getElementById(collapseId);
+    if (!target) return;
+    if (window.bootstrap && bootstrap.Collapse) {
+        const inst = bootstrap.Collapse.getOrCreateInstance(target, { toggle: false });
+        inst.show();
+    } else {
+        target.classList.add('show');
+    }
+    const card = target.closest('.card');
+    if (card) {
+        card.classList.add('border-3');
+        setTimeout(() => card.classList.remove('border-3'), 1800);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const hashMap = {
+        '#unlinkedRequisitionsSection': 'unlinkedRequisitionsCollapse',
+        '#posInvoicedSection': 'posInvoicedCollapse',
+        '#unsubmittedInvoicesSection': 'unsubmittedInvoicesCollapse',
+        '#invoiceReportingSection': 'invoiceReportingCollapse'
+    };
+    if (hashMap[window.location.hash]) {
+        openAuditSection(hashMap[window.location.hash]);
+    }
+});
+
+function selectStatementsByPeriod() {
+    const chosenPeriod = document.getElementById('periodSelect').value.trim().toLowerCase();
+    const selectEl = document.getElementById('statementSelect');
+    Array.from(selectEl.options).forEach(opt => {
+        const optPeriod = (opt.getAttribute('data-period') || '').trim().toLowerCase();
+        opt.selected = chosenPeriod ? (optPeriod === chosenPeriod) : false;
+    });
+}
+
+function selectAllVisibleStatements() {
+    const chosenPeriod = document.getElementById('periodSelect').value.trim().toLowerCase();
+    const selectEl = document.getElementById('statementSelect');
+    Array.from(selectEl.options).forEach(opt => {
+        const optPeriod = (opt.getAttribute('data-period') || '').trim().toLowerCase();
+        if (!chosenPeriod || optPeriod === chosenPeriod) {
+            opt.selected = true;
+        }
+    });
+}
+
+document.getElementById('hubSearchInput').addEventListener('keyup', function() {
+    const query = this.value.toLowerCase().trim();
+    document.querySelectorAll('.audit-table tbody tr').forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+    });
+});
+</script>
 {% endblock %}
